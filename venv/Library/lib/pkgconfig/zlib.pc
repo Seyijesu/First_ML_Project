@@ -1,8 +1,8 @@
-prefix=C:/Oluwaseyi/Coding/Machine Learning/First_ML_Project/venv/Library
-exec_prefix=C:/Oluwaseyi/Coding/Machine Learning/First_ML_Project/venv/Library
-libdir=C:/Oluwaseyi/Coding/Machine Learning/First_ML_Project/venv/Library/lib
-sharedlibdir=C:/Oluwaseyi/Coding/Machine Learning/First_ML_Project/venv/Library/lib
-includedir=C:/Oluwaseyi/Coding/Machine Learning/First_ML_Project/venv/Library/include
+prefix=C:/Oluwaseyi/Coding/Machine_Learning/First_ML_Project/venv/Library
+exec_prefix=C:/Oluwaseyi/Coding/Machine_Learning/First_ML_Project/venv/Library
+libdir=C:/Oluwaseyi/Coding/Machine_Learning/First_ML_Project/venv/Library/lib
+sharedlibdir=C:/Oluwaseyi/Coding/Machine_Learning/First_ML_Project/venv/Library/lib
+includedir=C:/Oluwaseyi/Coding/Machine_Learning/First_ML_Project/venv/Library/include
 
 Name: zlib
 Description: zlib compression library

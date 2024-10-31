@@ -132,7 +132,7 @@ def v4_int_to_packed(address):
 
     """
     try:
-        return address.to_bytes(4)  # big endian
+        return address.to_bytes(4, 'big')
     except OverflowError:
         raise ValueError("Address negative or too large for IPv4")
 
@@ -148,7 +148,7 @@ def v6_int_to_packed(address):
 
     """
     try:
-        return address.to_bytes(16)  # big endian
+        return address.to_bytes(16, 'big')
     except OverflowError:
         raise ValueError("Address negative or too large for IPv6")
 
@@ -310,7 +310,7 @@ def collapse_addresses(addresses):
                            [IPv4Network('192.0.2.0/24')]
 
     Args:
-        addresses: An iterable of IPv4Network or IPv6Network objects.
+        addresses: An iterator of IPv4Network or IPv6Network objects.
 
     Returns:
         An iterator of the collapsed IPv(4|6)Network objects.
@@ -1077,20 +1077,15 @@ class _BaseNetwork(_IPAddressBase):
 
     @property
     def is_private(self):
-        """Test if this network belongs to a private range.
+        """Test if this address is allocated for private networks.
 
         Returns:
-            A boolean, True if the network is reserved per
+            A boolean, True if the address is reserved per
             iana-ipv4-special-registry or iana-ipv6-special-registry.
 
         """
-        return any(self.network_address in priv_network and
-                   self.broadcast_address in priv_network
-                   for priv_network in self._constants._private_networks) and all(
-                    self.network_address not in network and
-                    self.broadcast_address not in network
-                    for network in self._constants._private_networks_exceptions
-                )
+        return (self.network_address.is_private and
+                self.broadcast_address.is_private)
 
     @property
     def is_global(self):
@@ -1126,15 +1121,6 @@ class _BaseNetwork(_IPAddressBase):
         """
         return (self.network_address.is_loopback and
                 self.broadcast_address.is_loopback)
-
-
-class _BaseConstants:
-
-    _private_networks = []
-
-
-_BaseNetwork._constants = _BaseConstants
-
 
 class _BaseV4:
 
@@ -1308,7 +1294,7 @@ class IPv4Address(_BaseV4, _BaseAddress):
         # Constructing from a packed address
         if isinstance(address, bytes):
             self._check_packed_address(address, 4)
-            self._ip = int.from_bytes(address)  # big endian
+            self._ip = int.from_bytes(address, 'big')
             return
 
         # Assume input argument to be string or any object representation
@@ -1415,16 +1401,6 @@ class IPv4Address(_BaseV4, _BaseAddress):
 
         """
         return self in self._constants._linklocal_network
-
-    @property
-    def ipv6_mapped(self):
-        """Return the IPv4-mapped IPv6 address.
-
-        Returns:
-            The IPv4-mapped IPv6 address per RFC 4291.
-
-        """
-        return IPv6Address(f'::ffff:{self}')
 
 
 class IPv4Interface(IPv4Address):
@@ -1615,7 +1591,6 @@ class _IPv4Constants:
 
 
 IPv4Address._constants = _IPv4Constants
-IPv4Network._constants = _IPv4Constants
 
 
 class _BaseV6:
@@ -1865,6 +1840,9 @@ class _BaseV6:
     def _explode_shorthand_ip_string(self):
         """Expand a shortened IPv6 address.
 
+        Args:
+            ip_str: A string, the IPv6 address.
+
         Returns:
             A string, the expanded IPv6 address.
 
@@ -1967,49 +1945,8 @@ class IPv6Address(_BaseV6, _BaseAddress):
 
         self._ip = self._ip_int_from_string(addr_str)
 
-    def _explode_shorthand_ip_string(self):
-        ipv4_mapped = self.ipv4_mapped
-        if ipv4_mapped is None:
-            return super()._explode_shorthand_ip_string()
-        prefix_len = 30
-        raw_exploded_str = super()._explode_shorthand_ip_string()
-        return f"{raw_exploded_str[:prefix_len]}{ipv4_mapped!s}"
-
-    def _reverse_pointer(self):
-        ipv4_mapped = self.ipv4_mapped
-        if ipv4_mapped is None:
-            return super()._reverse_pointer()
-        prefix_len = 30
-        raw_exploded_str = super()._explode_shorthand_ip_string()[:prefix_len]
-        # ipv4 encoded using hexadecimal nibbles instead of decimals
-        ipv4_int = ipv4_mapped._ip
-        reverse_chars = f"{raw_exploded_str}{ipv4_int:008x}"[::-1].replace(':', '')
-        return '.'.join(reverse_chars) + '.ip6.arpa'
-
-    def _ipv4_mapped_ipv6_to_str(self):
-        """Return convenient text representation of IPv4-mapped IPv6 address
-
-        See RFC 4291 2.5.5.2, 2.2 p.3 for details.
-
-        Returns:
-            A string, 'x:x:x:x:x:x:d.d.d.d', where the 'x's are the hexadecimal values of
-            the six high-order 16-bit pieces of the address, and the 'd's are
-            the decimal values of the four low-order 8-bit pieces of the
-            address (standard IPv4 representation) as defined in RFC 4291 2.2 p.3.
-
-        """
-        ipv4_mapped = self.ipv4_mapped
-        if ipv4_mapped is None:
-            raise AddressValueError("Can not apply to non-IPv4-mapped IPv6 address %s" % str(self))
-        high_order_bits = self._ip >> 32
-        return "%s:%s" % (self._string_from_ip_int(high_order_bits), str(ipv4_mapped))
-
     def __str__(self):
-        ipv4_mapped = self.ipv4_mapped
-        if ipv4_mapped is None:
-            ip_str = super().__str__()
-        else:
-            ip_str = self._ipv4_mapped_ipv6_to_str()
+        ip_str = super().__str__()
         return ip_str + '%' + self._scope_id if self._scope_id else ip_str
 
     def __hash__(self):
@@ -2022,9 +1959,6 @@ class IPv6Address(_BaseV6, _BaseAddress):
         if not address_equal:
             return False
         return self._scope_id == getattr(other, '_scope_id', None)
-
-    def __reduce__(self):
-        return (self.__class__, (str(self),))
 
     @property
     def scope_id(self):
@@ -2151,9 +2085,6 @@ class IPv6Address(_BaseV6, _BaseAddress):
             RFC 2373 2.5.3.
 
         """
-        ipv4_mapped = self.ipv4_mapped
-        if ipv4_mapped is not None:
-            return ipv4_mapped.is_loopback
         return self._ip == 1
 
     @property
@@ -2270,7 +2201,7 @@ class IPv6Interface(IPv6Address):
 
     @property
     def is_loopback(self):
-        return super().is_loopback and self.network.is_loopback
+        return self._ip == 1 and self.network.is_loopback
 
 
 class IPv6Network(_BaseV6, _BaseNetwork):
@@ -2411,4 +2342,3 @@ class _IPv6Constants:
 
 
 IPv6Address._constants = _IPv6Constants
-IPv6Network._constants = _IPv6Constants

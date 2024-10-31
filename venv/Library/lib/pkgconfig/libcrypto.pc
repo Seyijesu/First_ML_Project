@@ -1,4 +1,4 @@
-prefix=C:/Oluwaseyi/Coding/Machine Learning/First_ML_Project/venv/Library 
+prefix=C:/Oluwaseyi/Coding/Machine_Learning/First_ML_Project/venv/Library 
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
